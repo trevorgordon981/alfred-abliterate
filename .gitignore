@@ -1,0 +1,6 @@
+*.npz
+__pycache__
+*.pyc
+.DS_Store
+acts_*.npz
+*_direction*.npz
