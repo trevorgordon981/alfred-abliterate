@@ -5,6 +5,9 @@ from __future__ import annotations
 import importlib.util
 import json
 from pathlib import Path
+import subprocess
+import sys
+import tempfile
 import unittest
 
 
@@ -63,6 +66,84 @@ class ProductionIsolation(unittest.TestCase):
         source = (ROOT / "abliterated_server.py").read_text()
         self.assertIn("--port 18082", source)
         self.assertNotIn("--port 8082", source)
+
+
+class M3QuantizationOrder(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.script = ROOT / "bake_abliteration_m3.py"
+        # The helper must be importable without numpy, MLX, or a model. Numeric
+        # dependencies are lazy and are reached only by the bound fused builder.
+        cls.helper = load_module("m3_full_precision_helper", cls.script)
+
+    def _model(self, config):
+        temporary = tempfile.TemporaryDirectory()
+        root = Path(temporary.name)
+        (root / "config.json").write_text(json.dumps(config))
+        self.addCleanup(temporary.cleanup)
+        return root
+
+    def _direct_command(self, model, *extra):
+        return [
+            sys.executable,
+            "-I",
+            str(self.script),
+            "--model",
+            str(model),
+            "--directions",
+            "does-not-exist.npz",
+            "--output",
+            str(Path(model).parent / "must-not-exist"),
+            *extra,
+        ]
+
+    def test_quantized_config_fails_before_optional_imports_or_direction_reads(self):
+        model = self._model({"quantization": {"bits": 6, "group_size": 64}})
+        result = subprocess.run(
+            self._direct_command(model), capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(2, result.returncode)
+        self.assertIn("REFUSING", result.stderr)
+        self.assertIn("low-bit M3 weights must never be edited", result.stderr)
+        self.assertIn("fused_abliterate_quantize.py", result.stderr)
+
+    def test_even_full_precision_direct_execution_routes_to_fused_builder(self):
+        model = self._model({"text_config": {"num_hidden_layers": 60}})
+        result = subprocess.run(
+            self._direct_command(model), capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(2, result.returncode)
+        self.assertIn("standalone M3 baking is disabled", result.stderr)
+        self.assertIn("build_gate_promote_abliterated_m3.sh build", result.stderr)
+
+    def test_quantized_module_is_rejected_before_mlx_import(self):
+        class LowBitModule:
+            scales = object()
+            bits = 6
+            group_size = 64
+
+        with self.assertRaisesRegex(RuntimeError, "already-quantized M3 module"):
+            self.helper.dequantize_layer_weight(LowBitModule())
+        with self.assertRaisesRegex(RuntimeError, "already-quantized M3 module"):
+            self.helper.requantize_layer(LowBitModule(), object(), 64, 6)
+
+    def test_helper_contains_no_low_bit_round_trip_or_force_escape_hatch(self):
+        source = self.script.read_text()
+        force_flag = "--force" + "-quantized"
+        self.assertNotIn("mx.dequantize(", source)
+        self.assertNotIn("mx.quantize(", source)
+        self.assertNotIn(force_flag, source)
+        for path in ROOT.rglob("*"):
+            if path.is_file() and ".git" not in path.parts \
+                    and path.suffix in {".py", ".sh", ".md"}:
+                self.assertNotIn(force_flag, path.read_text(), path)
+
+    def test_m3_docs_name_only_the_bf16_then_single_quantization_path(self):
+        docs = (ROOT / "README.md").read_text() + (ROOT / "M3_ABLITERATE_RUNBOOK.md").read_text()
+        self.assertIn("fused_abliterate_quantize.py", docs)
+        self.assertIn("full-VL bf16", docs)
+        self.assertIn("quantize the complete", docs)
+        self.assertNotIn("bake_abliteration_m3.py \\", docs)
 
 
 if __name__ == "__main__":

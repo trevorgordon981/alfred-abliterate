@@ -6,6 +6,14 @@
 > they are not an activation path. Runtime integration is deferred until the
 > live Byron benchmark is finished.
 
+> **M3 weight-build safety:** Never modify an already-quantized MiniMax-M3.
+> `bake_abliteration_m3.py` is helper-only and its direct entry point is
+> permanently disabled. The sole M3 build path is
+> `~/pipeline-automation/fused_abliterate_quantize.py`, invoked by
+> `build_gate_promote_abliterated_m3.sh build`: edit the full-VL bf16 source,
+> then quantize the complete candidate exactly once. See
+> `M3_ABLITERATE_RUNBOOK.md` for the receipt-bound command.
+
 Residual-stream refusal-direction projection for Qwen3.5-A10B-4bit running under mlx_lm on Mac Studio. Uses the standard abliteration approach (FailSpy, etc.) adapted for the qwen3_5 hybrid MoE architecture and a quantized MLX base model.
 
 **All steps run on Mac Studio. No DGX needed. No fp16 download needed.**
