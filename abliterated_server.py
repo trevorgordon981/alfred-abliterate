@@ -12,16 +12,15 @@ Usage:
     --model ~/models/qwen3.5-122b-a10b-4bit \
     --directions refusal_direction.npz,safety_direction.npz \
     --top-k 20 \
-    --host 127.0.0.1 --port 8082
+  --host 127.0.0.1 --port 18082
 
 Any additional flags are passed through to mlx_lm.server unchanged. Env vars:
   ABLITERATE_DIRECTIONS  (comma-separated .npz paths; same as --directions)
   ABLITERATE_TOP_K       (same as --top-k; default 20)
 
-Intended to run under launchd as a drop-in replacement for the vMLX server
-on port 8082 for this model. vMLX is a different engine — this server uses
-mlx_lm instead, so some features (vMLX prefix cache, tool-call parsing) are
-not available. Those were handled by blockops-proxy anyway.
+Historical research server only. It is not Trevor's production custom Python
+engine and must not bind the production port. Production integration requires
+a separate, reviewed engine change after all active inference jobs finish.
 """
 
 import argparse

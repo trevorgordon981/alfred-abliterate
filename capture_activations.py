@@ -16,8 +16,8 @@ Usage:
     --out acts_refusal.npz
 
 Designed for the qwen3_5 model family (hybrid GatedDeltaNet + Attention + MoE).
-Works on the 4-bit quantized MLX weights. Run with vMLX stopped to free Metal
-budget.
+Works on the 4-bit quantized MLX weights. Run only in an approved maintenance
+window after the custom Python serving engine and inference jobs have stopped.
 """
 
 import argparse

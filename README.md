@@ -1,5 +1,11 @@
 # alfred-abliterate
 
+> **Deployment status:** Studio production is served by Trevor's custom Python
+> engine, not vMLX. The `abliterated_vlm_server.py` and
+> `vllm_abliterate_hook.py` files are retained as historical experiments only;
+> they are not an activation path. Runtime integration is deferred until the
+> live Byron benchmark is finished.
+
 Residual-stream refusal-direction projection for Qwen3.5-A10B-4bit running under mlx_lm on Mac Studio. Uses the standard abliteration approach (FailSpy, etc.) adapted for the qwen3_5 hybrid MoE architecture and a quantized MLX base model.
 
 **All steps run on Mac Studio. No DGX needed. No fp16 download needed.**
@@ -14,28 +20,25 @@ Residual-stream refusal-direction projection for Qwen3.5-A10B-4bit running under
 ## Pipeline
 
 ```
-Step 1: Stop vMLX  (free Metal budget)
+Step 1: Use an approved maintenance window with the custom engine stopped
 Step 2: capture_activations.py  (two runs: refusal + benign prompt sets)
 Step 3: compute_direction.py    (mean-diff per layer, identify strongest layers)
 Step 4: test_abliteration.py    (A/B vs baseline; read the outputs yourself)
 Step 5: project_inference.py    (single-prompt inference with projection on)
-Step 6: (optional) bake projection into live vMLX serving chain
+Step 6: validate a separately reviewed custom-engine integration
 ```
 
-## Step 1: Free Metal budget
+## Step 1: Isolate the research run
 
-```bash
-launchctl unload ~/Library/LaunchAgents/ai.alfred.mlx-vlm-server.plist
-launchctl unload ~/Library/LaunchAgents/ai.alfred.mlx-vlm-coder.plist
-launchctl unload ~/Library/LaunchAgents/ai.alfred.mlx-vlm-reason.plist
-```
-
-Confirm freed: `~/.hermes/skills/devops/metal-memory/metal-memory.py --compact`
+Do not stop, signal, restart, or purge the production custom Python serving
+engine from this repository. Confirm that Byron and every other inference job
+has finished, schedule a maintenance window, and use a separate working model
+copy. Verify Metal capacity before loading the research model.
 
 ## Step 2: Capture activations
 
 ```bash
-PY=python3
+PY=/Users/alfredpennyworth/.pyenv/versions/3.12.13/bin/python
 MODEL=~/models/qwen3.5-122b-a10b-4bit
 
 $PY capture_activations.py --model $MODEL \
@@ -88,15 +91,14 @@ $PY project_inference.py --model $MODEL \
 
 Quick way to iterate on layer selection without the full A/B harness.
 
-## Step 6: (optional) Bake into live serving
+## Step 6: Custom-engine integration gate
 
-Once you're happy with a layer selection:
-
-1. Copy the `attach_projection()` function from `project_inference.py` into your vMLX server startup.
-2. Load `refusal_direction.npz` at serve-time, attach hooks to the chosen layers after `load()`.
-3. Restart vMLX.
-
-This is reversible: remove the hook call, restart, back to baseline.
+This repository deliberately does not provide a production activation command.
+Once the offline A/B result is acceptable, implement projection support in a
+separate branch of Trevor's custom Python engine, add baseline/projection parity
+tests, and review the exact deployment diff. Activation requires Byron to be
+finished, an engine rollback copy, and a post-restart identity plus completion
+smoke test. Legacy vMLX/vLLM adapters are not valid deployment instructions.
 
 ## Expert-level fallback (if residual-only is insufficient)
 
@@ -130,18 +132,7 @@ This is research-grade work with no turnkey tool. Start with residual-only, move
 
 ## Restoration
 
-To revert: remove any hooks / restart vMLX. The base MLX weights at `~/models/qwen3.5-122b-a10b-4bit/` are untouched by this pipeline.
-
-## Related projects
-
-Part of a self-hosted LLM operations toolkit:
-
-- [blockops-proxy](https://github.com/trevorgordon981/blockops-proxy) — tool-call-translating proxy that fronts the abliterated model for OpenAI-compatible clients
-- [llm-otel-proxy](https://github.com/trevorgordon981/llm-otel-proxy) — OTel metrics proxy for token/cost/latency tracking
-- [alfred-infra](https://github.com/trevorgordon981/alfred-infra) — monitoring + backup infrastructure for the serving cluster
-- [alfred-rag](https://github.com/trevorgordon981/alfred-rag) — hybrid RAG stack (dense + BM25 + rerank)
-- [context-bench](https://github.com/trevorgordon981/context-bench) — context-window throughput benchmark
-
-## License
-
-MIT
+The research pipeline never mutates the base MLX weights at
+`~/models/qwen3.5-122b-a10b-4bit/`. If a later custom-engine integration is
+activated, rollback means restoring the reviewed pre-integration engine file
+and restarting only that engine during a maintenance window.

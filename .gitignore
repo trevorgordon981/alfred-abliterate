@@ -1,6 +1,30 @@
-*.npz
-__pycache__
-*.pyc
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
 .DS_Store
-acts_*.npz
-*_direction*.npz
+
+# Generated activation/direction/model artifacts
+*.npz
+*.npy
+*.safetensors
+*.bin
+*.pt
+*.gguf
+
+# Generated expanded prompt corpora and reports
+prompts_*_ctx.json
+results/
+outputs/
+.firecrawl/
+
+# Runtime state and manual snapshots
+*.log
+*.out
+*.err
+*.pid
+*.bak
+*.bak-*
+*.bak.*
+*.prepatch

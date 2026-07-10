@@ -1,0 +1,19 @@
+name: offline-ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  syntax-and-unit:
+    runs-on: ubuntu-latest
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - uses: https://data.forgejo.org/actions/checkout@v6
+      - name: Python syntax without optional MLX imports
+        run: python3 -m compileall -q .
+      - name: Shell syntax
+        run: find . -type f -name '*.sh' -not -path './.git/*' -exec bash -n {} +
+      - name: Offline unit tests
+        run: python3 -m unittest discover -s tests -v
